@@ -21,7 +21,7 @@ const quickReplies = [
 
 const initialBotMessage = {
   role: 'assistant',
-  content: 'Γεια σου! Είμαι ο Grouppo IQ, ο ψηφιακός βοηθός της Grouppo Cucine. Πώς μπορώ να σε βοηθήσω;',
+  content: 'Γεια σου! Είμαι ο Gruppo IQ, ο ψηφιακός βοηθός της Gruppo Cucine. Πώς μπορώ να σε βοηθήσω;',
 };
 
 // Add TypingIndicator component
@@ -473,7 +473,7 @@ const Chat = () => {
       }}
     >
       <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '1.1rem', color: '#222' }}>
-      Grouppo IQ
+      Gruppo IQ
       </Typography>
       <Box sx={{ display: 'flex', gap: 1.2, ml: 'auto' }}>
         {/* Minimize control */}
