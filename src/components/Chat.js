@@ -215,6 +215,16 @@ const Chat = () => {
       setSessionEnded(true);
       setIsMinimized(true);
       setSavedSession(null);
+      // Reset messages to initial state
+      setMessages([initialBotMessage]);
+      setShowQuickReplies(true);
+      // Notify parent window about minimization
+      if (window.parent !== window) {
+        window.parent.postMessage(JSON.stringify({
+          type: 'CHAT_MINIMIZED',
+          isMinimized: true
+        }), '*');
+      }
     }
   };
 
@@ -300,10 +310,6 @@ const Chat = () => {
   const handleMaximize = () => {
     if (sessionEnded) {
       startNewSession();
-    } else if (savedSession) {
-      setMessages(savedSession.messages);
-      setShowQuickReplies(savedSession.showQuickReplies);
-      setSocket(savedSession.socket);
     }
     setIsMinimized(false);
     // Send message to parent window
@@ -482,7 +488,18 @@ const Chat = () => {
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'MAXIMIZE_CHAT') {
-          handleMaximize();
+          console.log('Received maximize message');
+          if (sessionEnded) {
+            startNewSession();
+          }
+          setIsMinimized(false);
+          // Send message to parent window
+          if (window.parent !== window) {
+            window.parent.postMessage(JSON.stringify({
+              type: 'CHAT_MINIMIZED',
+              isMinimized: false
+            }), '*');
+          }
         }
       } catch (error) {
         // Ignore non-JSON messages
@@ -491,7 +508,7 @@ const Chat = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [sessionEnded]);
 
   if (!isVisible) return null;
 
