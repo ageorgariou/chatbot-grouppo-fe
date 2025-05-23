@@ -172,23 +172,6 @@ const useHostViewport = () => {
   return isHostMobile !== null ? isHostMobile : isMobile;
 };
 
-const sendChatboxSize = (isMinimized, isMobile) => {
-  let width, height;
-  if (isMinimized) {
-    width = 56;
-    height = 56;
-  } else if (isMobile) {
-    width = window.innerWidth;
-    height = window.innerHeight * 0.8;
-  } else {
-    width = 400;
-    height = 600;
-  }
-  if (window.parent !== window) {
-    window.parent.postMessage({ type: 'CHATBOX_SIZE', width, height }, '*');
-  }
-};
-
 const Chat = () => {
   const [messages, setMessages] = useState([initialBotMessage]);
   const [input, setInput] = useState('');
@@ -200,7 +183,7 @@ const Chat = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true);
   const [isVisible, setIsVisible] = useState(true);
   const [sessionEnded, setSessionEnded] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -210,6 +193,16 @@ const Chat = () => {
   const [isTypingResponse, setIsTypingResponse] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [savedSession, setSavedSession] = useState(null);
+
+  // Add effect to notify parent window of initial minimized state
+  useEffect(() => {
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify({
+        type: 'CHAT_MINIMIZED',
+        isMinimized: true
+      }), '*');
+    }
+  }, []);
 
   // Use the custom hook instead of local state
   const isMobile = useHostViewport();
@@ -295,7 +288,13 @@ const Chat = () => {
       });
     }
     setIsMinimized(true);
-    sendChatboxSize(true, isMobile);
+    // Send message to parent window
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify({
+        type: 'CHAT_MINIMIZED',
+        isMinimized: true
+      }), '*');
+    }
   };
 
   const handleMaximize = () => {
@@ -307,7 +306,13 @@ const Chat = () => {
       setSocket(savedSession.socket);
     }
     setIsMinimized(false);
-    sendChatboxSize(false, isMobile);
+    // Send message to parent window
+    if (window.parent !== window) {
+      window.parent.postMessage(JSON.stringify({
+        type: 'CHAT_MINIMIZED',
+        isMinimized: false
+      }), '*');
+    }
   };
 
   useEffect(() => {
@@ -371,14 +376,6 @@ const Chat = () => {
       }
     };
   }, []);
-
-  useEffect(() => {
-    sendChatboxSize(isMinimized, isMobile);
-    // Also update on resize
-    const onResize = () => sendChatboxSize(isMinimized, isMobile);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [isMinimized, isMobile]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -479,6 +476,23 @@ const Chat = () => {
     setDeleteDialogOpen(false);
   };
 
+  useEffect(() => {
+    // Listen for messages from parent window
+    const handleMessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'MAXIMIZE_CHAT') {
+          handleMaximize();
+        }
+      } catch (error) {
+        // Ignore non-JSON messages
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   if (!isVisible) return null;
 
   // Header bar with controls (refined for screenshot style)
@@ -520,9 +534,15 @@ const Chat = () => {
       <Box
         sx={{
           position: 'fixed',
-          bottom: 20,
-          right: 20,
+          bottom: 0,
+          right: 0,
           zIndex: 1300,
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          alignItems: 'flex-end',
+          background: 'transparent',
         }}
         onClick={handleMaximize}
         style={{ cursor: 'pointer' }}
@@ -534,15 +554,17 @@ const Chat = () => {
             '&:hover': {
               bgcolor: '#7C3AED',
             },
-            width: 56,
-            height: 56,
-            minHeight: 56,
-            minWidth: 56,
-            boxShadow: 3,
+            width: '100%',
+            height: '100%',
+            minHeight: '100%',
+            minWidth: '100%',
+            boxShadow: 'none',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             p: 0,
+            m: 0,
+            borderRadius: '50%',
           }}
         >
           <img
@@ -569,28 +591,32 @@ const Chat = () => {
     <Box
       sx={{
         position: 'fixed',
-        bottom: 20,
-        right: 20,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         zIndex: 1300,
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        background: 'transparent',
       }}
     >
-      <Container maxWidth="md" sx={{ p: 0 }}>
+      <Container maxWidth="md" sx={{ p: 0, height: '100%', width: '100%' }}>
         <Paper 
           elevation={3} 
           sx={{ 
-            width: isMobile ? '100vw' : 420,
-            height: isMobile ? '80vh' : 650,
+            width: '100%',
+            height: '100%',
             display: 'flex',
             flexDirection: 'column',
-            borderRadius: isMobile ? '16px 16px 0 0' : 4,
+            borderRadius: 0,
             overflow: 'hidden',
             fontSize: '0.95rem',
-            position: isMobile ? 'fixed' : 'relative',
-            top: isMobile ? 'auto' : 'auto',
-            left: isMobile ? 0 : 'auto',
-            right: isMobile ? 0 : 'auto',
-            bottom: isMobile ? 0 : 'auto',
-            m: isMobile ? 0 : 'auto',
+            position: 'relative',
+            m: 0,
             bgcolor: '#fff',
           }}
         >
