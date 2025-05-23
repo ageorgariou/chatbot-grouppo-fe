@@ -15,10 +15,14 @@ const theme = createTheme({
 });
 
 function App() {
+  // Detect widget mode from URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const widgetMode = urlParams.get('mode') === 'widget';
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Chat />
+      <Chat widgetMode={widgetMode} />
     </ThemeProvider>
   );
 }

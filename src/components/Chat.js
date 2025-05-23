@@ -172,7 +172,7 @@ const useHostViewport = () => {
   return isHostMobile !== null ? isHostMobile : isMobile;
 };
 
-const Chat = () => {
+const Chat = ({ widgetMode = false }) => {
   const [messages, setMessages] = useState([initialBotMessage]);
   const [input, setInput] = useState('');
   const [socket, setSocket] = useState(null);
@@ -492,9 +492,9 @@ const Chat = () => {
     return (
       <Box
         sx={{
-          position: 'fixed',
-          bottom: 20,
-          right: 20,
+          position: widgetMode ? 'static' : 'fixed',
+          bottom: widgetMode ? 'auto' : 20,
+          right: widgetMode ? 'auto' : 20,
           zIndex: 1300,
         }}
         onClick={handleMaximize}
@@ -541,29 +541,33 @@ const Chat = () => {
   return (
     <Box
       sx={{
-        position: 'fixed',
-        bottom: 20,
-        right: 20,
+        position: widgetMode ? 'static' : 'fixed',
+        bottom: widgetMode ? 'auto' : 20,
+        right: widgetMode ? 'auto' : 20,
         zIndex: 1300,
+        width: widgetMode ? '100%' : 'auto',
+        height: widgetMode ? '100%' : 'auto',
+        maxWidth: widgetMode ? '100%' : 'none',
+        maxHeight: widgetMode ? '100%' : 'none',
       }}
     >
-      <Container maxWidth="md" sx={{ p: 0 }}>
+      <Container maxWidth="md" sx={{ p: 0, width: widgetMode ? '100%' : 'auto', height: widgetMode ? '100%' : 'auto' }}>
         <Paper 
           elevation={3} 
           sx={{ 
-            width: isMobile ? '100vw' : 420,
-            height: isMobile ? '80vh' : 650,
+            width: widgetMode ? '100%' : (isMobile ? '100vw' : 420),
+            height: widgetMode ? '100%' : (isMobile ? '80vh' : 650),
             display: 'flex',
             flexDirection: 'column',
-            borderRadius: isMobile ? '16px 16px 0 0' : 4,
+            borderRadius: widgetMode ? 0 : (isMobile ? '16px 16px 0 0' : 4),
             overflow: 'hidden',
             fontSize: '0.95rem',
-            position: isMobile ? 'fixed' : 'relative',
-            top: isMobile ? 'auto' : 'auto',
-            left: isMobile ? 0 : 'auto',
-            right: isMobile ? 0 : 'auto',
-            bottom: isMobile ? 0 : 'auto',
-            m: isMobile ? 0 : 'auto',
+            position: widgetMode ? 'static' : (isMobile ? 'fixed' : 'relative'),
+            top: widgetMode ? 'auto' : (isMobile ? 'auto' : 'auto'),
+            left: widgetMode ? 'auto' : (isMobile ? 0 : 'auto'),
+            right: widgetMode ? 'auto' : (isMobile ? 0 : 'auto'),
+            bottom: widgetMode ? 'auto' : (isMobile ? 0 : 'auto'),
+            m: widgetMode ? 0 : (isMobile ? 0 : 'auto'),
             bgcolor: '#fff',
           }}
         >
