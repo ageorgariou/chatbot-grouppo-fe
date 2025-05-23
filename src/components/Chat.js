@@ -172,7 +172,24 @@ const useHostViewport = () => {
   return isHostMobile !== null ? isHostMobile : isMobile;
 };
 
-const Chat = ({ widgetMode = false }) => {
+const sendChatboxSize = (isMinimized, isMobile) => {
+  let width, height;
+  if (isMinimized) {
+    width = 56;
+    height = 56;
+  } else if (isMobile) {
+    width = window.innerWidth;
+    height = window.innerHeight * 0.8;
+  } else {
+    width = 400;
+    height = 600;
+  }
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'CHATBOX_SIZE', width, height }, '*');
+  }
+};
+
+const Chat = () => {
   const [messages, setMessages] = useState([initialBotMessage]);
   const [input, setInput] = useState('');
   const [socket, setSocket] = useState(null);
@@ -278,6 +295,7 @@ const Chat = ({ widgetMode = false }) => {
       });
     }
     setIsMinimized(true);
+    sendChatboxSize(true, isMobile);
   };
 
   const handleMaximize = () => {
@@ -289,6 +307,7 @@ const Chat = ({ widgetMode = false }) => {
       setSocket(savedSession.socket);
     }
     setIsMinimized(false);
+    sendChatboxSize(false, isMobile);
   };
 
   useEffect(() => {
@@ -352,6 +371,14 @@ const Chat = ({ widgetMode = false }) => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    sendChatboxSize(isMinimized, isMobile);
+    // Also update on resize
+    const onResize = () => sendChatboxSize(isMinimized, isMobile);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [isMinimized, isMobile]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -492,9 +519,9 @@ const Chat = ({ widgetMode = false }) => {
     return (
       <Box
         sx={{
-          position: widgetMode ? 'static' : 'fixed',
-          bottom: widgetMode ? 'auto' : 20,
-          right: widgetMode ? 'auto' : 20,
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
           zIndex: 1300,
         }}
         onClick={handleMaximize}
@@ -541,33 +568,29 @@ const Chat = ({ widgetMode = false }) => {
   return (
     <Box
       sx={{
-        position: widgetMode ? 'static' : 'fixed',
-        bottom: widgetMode ? 'auto' : 20,
-        right: widgetMode ? 'auto' : 20,
+        position: 'fixed',
+        bottom: 20,
+        right: 20,
         zIndex: 1300,
-        width: widgetMode ? '100%' : 'auto',
-        height: widgetMode ? '100%' : 'auto',
-        maxWidth: widgetMode ? '100%' : 'none',
-        maxHeight: widgetMode ? '100%' : 'none',
       }}
     >
-      <Container maxWidth="md" sx={{ p: 0, width: widgetMode ? '100%' : 'auto', height: widgetMode ? '100%' : 'auto' }}>
+      <Container maxWidth="md" sx={{ p: 0 }}>
         <Paper 
           elevation={3} 
           sx={{ 
-            width: widgetMode ? '100%' : (isMobile ? '100vw' : 420),
-            height: widgetMode ? '100%' : (isMobile ? '80vh' : 650),
+            width: isMobile ? '100vw' : 420,
+            height: isMobile ? '80vh' : 650,
             display: 'flex',
             flexDirection: 'column',
-            borderRadius: widgetMode ? 0 : (isMobile ? '16px 16px 0 0' : 4),
+            borderRadius: isMobile ? '16px 16px 0 0' : 4,
             overflow: 'hidden',
             fontSize: '0.95rem',
-            position: widgetMode ? 'static' : (isMobile ? 'fixed' : 'relative'),
-            top: widgetMode ? 'auto' : (isMobile ? 'auto' : 'auto'),
-            left: widgetMode ? 'auto' : (isMobile ? 0 : 'auto'),
-            right: widgetMode ? 'auto' : (isMobile ? 0 : 'auto'),
-            bottom: widgetMode ? 'auto' : (isMobile ? 0 : 'auto'),
-            m: widgetMode ? 0 : (isMobile ? 0 : 'auto'),
+            position: isMobile ? 'fixed' : 'relative',
+            top: isMobile ? 'auto' : 'auto',
+            left: isMobile ? 0 : 'auto',
+            right: isMobile ? 0 : 'auto',
+            bottom: isMobile ? 0 : 'auto',
+            m: isMobile ? 0 : 'auto',
             bgcolor: '#fff',
           }}
         >
