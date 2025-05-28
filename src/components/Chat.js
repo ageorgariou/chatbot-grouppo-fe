@@ -197,10 +197,30 @@ const Chat = () => {
   // Add effect to notify parent window of initial minimized state
   useEffect(() => {
     if (window.parent !== window) {
-      window.parent.postMessage(JSON.stringify({
-        type: 'CHAT_MINIMIZED',
-        isMinimized: true
-      }), '*');
+      // Add a small delay to ensure the iframe is loaded
+      const timer = setTimeout(() => {
+        window.parent.postMessage(JSON.stringify({
+          type: 'CHAT_MINIMIZED',
+          isMinimized: true
+        }), '*');
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Add effect to handle initial load
+  useEffect(() => {
+    if (window.parent !== window) {
+      // Send initial state again after a longer delay to ensure it's received
+      const timer = setTimeout(() => {
+        window.parent.postMessage(JSON.stringify({
+          type: 'CHAT_MINIMIZED',
+          isMinimized: true
+        }), '*');
+      }, 1000);
+
+      return () => clearTimeout(timer);
     }
   }, []);
 
