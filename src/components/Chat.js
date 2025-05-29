@@ -183,7 +183,7 @@ const Chat = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
-  const [isMinimized, setIsMinimized] = useState(true);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [sessionEnded, setSessionEnded] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -201,7 +201,7 @@ const Chat = () => {
       const timer = setTimeout(() => {
         window.parent.postMessage(JSON.stringify({
           type: 'CHAT_MINIMIZED',
-          isMinimized: true
+          isMinimized: false
         }), '*');
       }, 100);
 
@@ -216,7 +216,7 @@ const Chat = () => {
       const timer = setTimeout(() => {
         window.parent.postMessage(JSON.stringify({
           type: 'CHAT_MINIMIZED',
-          isMinimized: true
+          isMinimized: false
         }), '*');
       }, 1000);
 
