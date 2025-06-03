@@ -193,6 +193,8 @@ const Chat = () => {
   const [isTypingResponse, setIsTypingResponse] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [savedSession, setSavedSession] = useState(null);
+  const [showPopup, setShowPopup] = useState(true);
+  const [isHovering, setIsHovering] = useState(false);
 
   // Add effect to notify parent window of initial minimized state
   useEffect(() => {
@@ -582,39 +584,79 @@ const Chat = () => {
           background: 'transparent',
         }}
         onClick={handleMaximize}
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
         style={{ cursor: 'pointer' }}
       >
-        <Fab
-          color="primary"
-          sx={{
-            bgcolor: '#8B5CF6',
-            '&:hover': {
-              bgcolor: '#7C3AED',
-            },
-            width: '100%',
-            height: '100%',
-            minHeight: '100%',
-            minWidth: '100%',
-            boxShadow: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            p: 0,
-            m: 0,
-            borderRadius: '50%',
-          }}
-        >
-          <img
-            src="/agent_bot.jpg"
-            alt="Agent Bot"
-            style={{
+        <Box sx={{ position: 'relative' }}>
+          {(showPopup || isHovering) && (
+            <Paper
+              elevation={3}
+              sx={{
+                position: 'absolute',
+                bottom: '70px',
+                right: '0',
+                padding: '12px 16px',
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                maxWidth: '250px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                zIndex: 1400,
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                <Typography sx={{ fontSize: '0.9rem', color: '#333' }}>
+                  Πώς μπορώ να φανώ χρήσιμος;
+                </Typography>
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowPopup(false);
+                  }}
+                  sx={{ 
+                    padding: '2px',
+                    color: '#666',
+                    '&:hover': { color: '#333' }
+                  }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            </Paper>
+          )}
+          <Fab
+            color="primary"
+            sx={{
+              bgcolor: '#8B5CF6',
+              '&:hover': {
+                bgcolor: '#7C3AED',
+              },
               width: '100%',
               height: '100%',
-              objectFit: 'cover',
-              borderRadius: '50%'
+              minHeight: '100%',
+              minWidth: '100%',
+              boxShadow: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              p: 0,
+              m: 0,
+              borderRadius: '50%',
             }}
-          />
-        </Fab>
+          >
+            <img
+              src="/agent_bot.jpg"
+              alt="Agent Bot"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: '50%'
+              }}
+            />
+          </Fab>
+        </Box>
       </Box>
     );
   }
