@@ -233,18 +233,21 @@ const Chat = () => {
       socket.close();
       setSocket(null);
       setSessionEnded(true);
-      setIsMinimized(true);
-      setSavedSession(null);
-      // Reset messages to initial state
-      setMessages([initialBotMessage]);
-      setShowQuickReplies(true);
-      // Notify parent window about minimization
+      // First send minimize message to parent to show white overlay
       if (window.parent !== window) {
         window.parent.postMessage(JSON.stringify({
           type: 'CHAT_MINIMIZED',
           isMinimized: true
         }), '*');
       }
+      // Then update local state after a delay to allow white overlay to appear
+      setTimeout(() => {
+        setIsMinimized(true);
+        setSavedSession(null);
+        // Reset messages to initial state
+        setMessages([initialBotMessage]);
+        setShowQuickReplies(true);
+      }, 50);
     }
   };
 
