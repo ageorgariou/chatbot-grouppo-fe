@@ -300,19 +300,40 @@ const Chat = () => {
   };
 
   const startNewSession = () => {
-    // Reset all state
-    setMessages([initialBotMessage]);
-    setShowQuickReplies(true);
-    setSessionEnded(false);
-    setIsMinimized(false);
-    setSavedSession(null);
-    setInput('');
-    setIsTyping(false);
-    setIsTypingResponse(false);
-    setLastAnimatedBotMsgIndex(null);
-    setIsPaused(false);
-    setError(null);
-    setIsLoading(true);
+    // Check if there's saved state to restore
+    const savedState = loadChatState();
+    let restoring = false;
+    
+    if (savedState && savedState.messages && savedState.messages.length > 1) {
+      // Restore saved state instead of starting fresh
+      setMessages(savedState.messages);
+      setShowQuickReplies(savedState.showQuickReplies);
+      setInput(savedState.input || '');
+      setSessionEnded(false);
+      setIsMinimized(false);
+      setSavedSession(null);
+      setIsTyping(false);
+      setIsTypingResponse(false);
+      setLastAnimatedBotMsgIndex(null);
+      setIsPaused(false);
+      setError(null);
+      restoring = true;
+      setIsLoading(false); // Do not show spinner when restoring
+    } else {
+      // Reset all state for truly new session
+      setMessages([initialBotMessage]);
+      setShowQuickReplies(true);
+      setSessionEnded(false);
+      setIsMinimized(false);
+      setSavedSession(null);
+      setInput('');
+      setIsTyping(false);
+      setIsTypingResponse(false);
+      setLastAnimatedBotMsgIndex(null);
+      setIsPaused(false);
+      setError(null);
+      setIsLoading(true); // Show spinner only for new session
+    }
 
     // Create new socket connection
     const newSocket = io('https://vangelis-be-72a501737d30.herokuapp.com', {
@@ -383,9 +404,9 @@ const Chat = () => {
   };
 
   const handleMaximize = () => {
-    if (sessionEnded || !socket) {
-      startNewSession();
-    }
+    // Always start a new session when maximizing (this will restore saved state if available)
+    startNewSession();
+    
     // First send maximize message to parent to show white overlay
     if (window.parent !== window) {
       window.parent.postMessage(JSON.stringify({
@@ -639,8 +660,9 @@ const Chat = () => {
     );
   }
 
-  if (isLoading) {
-    return <LoadingSpinner />;
+  // Only show plain white screen if loading and there is no previous chat history
+  if (isLoading && (!messages || messages.length <= 1)) {
+    return <div style={{ width: '100vw', height: '100vh', background: '#fff' }} />;
   }
 
   console.log('Rendering messages:', messages);
