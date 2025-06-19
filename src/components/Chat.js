@@ -173,19 +173,48 @@ const useHostViewport = () => {
 };
 
 const Chat = () => {
-  const [messages, setMessages] = useState([initialBotMessage]);
-  const [input, setInput] = useState('');
+  // Helper functions for session storage
+  const saveChatState = (state) => {
+    try {
+      sessionStorage.setItem('chatState', JSON.stringify(state));
+    } catch (error) {
+      console.warn('Failed to save chat state to session storage:', error);
+    }
+  };
+
+  const loadChatState = () => {
+    try {
+      const savedState = sessionStorage.getItem('chatState');
+      return savedState ? JSON.parse(savedState) : null;
+    } catch (error) {
+      console.warn('Failed to load chat state from session storage:', error);
+      return null;
+    }
+  };
+
+  const clearChatState = () => {
+    try {
+      sessionStorage.removeItem('chatState');
+    } catch (error) {
+      console.warn('Failed to clear chat state from session storage:', error);
+    }
+  };
+
+  // Load initial state from session storage
+  const savedState = loadChatState();
+  const [messages, setMessages] = useState(savedState?.messages || [initialBotMessage]);
+  const [input, setInput] = useState(savedState?.input || '');
   const [socket, setSocket] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [showQuickReplies, setShowQuickReplies] = useState(true);
+  const [showQuickReplies, setShowQuickReplies] = useState(savedState?.showQuickReplies ?? true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true); // Always start minimized on page reload
   const [isVisible, setIsVisible] = useState(true);
-  const [sessionEnded, setSessionEnded] = useState(false);
+  const [sessionEnded, setSessionEnded] = useState(savedState?.sessionEnded ?? false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [initialWindowHeight] = useState(window.innerHeight);
   const inputRef = useRef(null);
@@ -193,6 +222,19 @@ const Chat = () => {
   const [isTypingResponse, setIsTypingResponse] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [savedSession, setSavedSession] = useState(null);
+  const [isManualDelete, setIsManualDelete] = useState(false);
+
+  // Save state to session storage whenever relevant state changes
+  useEffect(() => {
+    const stateToSave = {
+      messages,
+      input,
+      showQuickReplies,
+      sessionEnded
+      // Note: isMinimized is not saved since we always want to start minimized on reload
+    };
+    saveChatState(stateToSave);
+  }, [messages, input, showQuickReplies, sessionEnded]);
 
   // Add effect to notify parent window of initial minimized state
   useEffect(() => {
@@ -201,13 +243,13 @@ const Chat = () => {
       const timer = setTimeout(() => {
         window.parent.postMessage(JSON.stringify({
           type: 'CHAT_MINIMIZED',
-          isMinimized: false
+          isMinimized: isMinimized
         }), '*');
       }, 100);
 
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [isMinimized]);
 
   // Add effect to handle initial load
   useEffect(() => {
@@ -216,13 +258,13 @@ const Chat = () => {
       const timer = setTimeout(() => {
         window.parent.postMessage(JSON.stringify({
           type: 'CHAT_MINIMIZED',
-          isMinimized: false
+          isMinimized: isMinimized
         }), '*');
       }, 1000);
 
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [isMinimized]);
 
   // Use the custom hook instead of local state
   const isMobile = useHostViewport();
@@ -247,6 +289,12 @@ const Chat = () => {
         // Reset messages to initial state
         setMessages([initialBotMessage]);
         setShowQuickReplies(true);
+        setInput('');
+        // Only clear session storage if it's a manual delete
+        if (isManualDelete) {
+          clearChatState();
+          setIsManualDelete(false);
+        }
       }, 50);
     }
   };
@@ -264,6 +312,7 @@ const Chat = () => {
     setLastAnimatedBotMsgIndex(null);
     setIsPaused(false);
     setError(null);
+    setIsLoading(true);
 
     // Create new socket connection
     const newSocket = io('https://vangelis-be-72a501737d30.herokuapp.com', {
@@ -334,7 +383,7 @@ const Chat = () => {
   };
 
   const handleMaximize = () => {
-    if (sessionEnded) {
+    if (sessionEnded || !socket) {
       startNewSession();
     }
     // First send maximize message to parent to show white overlay
@@ -349,68 +398,6 @@ const Chat = () => {
       setIsMinimized(false);
     }, 50);
   };
-
-  useEffect(() => {
-    const newSocket = io('https://vangelis-be-72a501737d30.herokuapp.com', {
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-
-    setSocket(newSocket);
-
-    newSocket.on('connect', () => {
-      setIsLoading(false);
-      newSocket.emit('startChat');
-      console.log('Socket connected:', newSocket.id);
-    });
-
-    newSocket.on('connect_error', (error) => {
-      setError('Failed to connect to the server. Please try again later.');
-      setIsLoading(false);
-      console.error('Socket connection error:', error);
-    });
-
-    newSocket.on('response', (data) => {
-      console.log('Received assistant response:', data.message);
-      setIsTypingResponse(true);
-      setIsPaused(false);
-      setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
-    });
-
-    newSocket.on('typing', (data) => {
-      if (data.sessionId === 'assistant') {
-        setIsTyping(true);
-      }
-      console.log('Received typing event:', data);
-    });
-
-    newSocket.on('stopTyping', (data) => {
-      if (data.sessionId === 'assistant') {
-        setIsTyping(false);
-      }
-      console.log('Received stopTyping event:', data);
-    });
-
-    newSocket.on('error', (data) => {
-      setError(data.message || 'An error occurred');
-      console.error('Socket error event:', data);
-    });
-
-    // Add beforeunload event listener
-    const handleBeforeUnload = () => {
-      deleteSession();
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      deleteSession();
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      newSocket.close();
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -503,6 +490,7 @@ const Chat = () => {
   };
 
   const handleDeleteConfirm = () => {
+    setIsManualDelete(true); // Mark this as a manual delete
     deleteSession();
     setDeleteDialogOpen(false);
   };
@@ -518,7 +506,7 @@ const Chat = () => {
         const data = JSON.parse(event.data);
         if (data.type === 'MAXIMIZE_CHAT') {
           console.log('Received maximize message');
-          if (sessionEnded) {
+          if (sessionEnded || !socket) {
             startNewSession();
           }
           setIsMinimized(false);
@@ -537,7 +525,30 @@ const Chat = () => {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [sessionEnded]);
+  }, [sessionEnded, socket]); // Add socket as dependency
+
+  // Add beforeunload event listener
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (socket) {
+        // Don't call deleteSession here as it would clear session storage
+        // Just close the socket to clean up the connection
+        socket.close();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      if (socket) {
+        socket.close();
+      }
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [socket]); // Add socket as dependency
 
   if (!isVisible) return null;
 
