@@ -646,7 +646,7 @@ const Chat = () => {
           }}
         >
           <img
-            src="/agent_bot.jpg"
+            src="/agent_bot.png"
             alt="Agent Bot"
             style={{
               width: '100%',
@@ -739,7 +739,7 @@ const Chat = () => {
                       }}
                     >
                       {isInitialBotMessage && (
-                        <img src="/agent_bot.jpg" alt="Assistant Icon" style={{ width: 28, height: 28, marginTop: 2, borderRadius: '50%' }} />
+                        <img src="/Gruppo_IQ.jpg" alt="Assistant Icon" style={{ width: 48, height: 48, marginTop: 2, borderRadius: '6px' }} />
                       )}
                       {message.role === 'assistant'
                         ? (isLastAssistantMessage && isTypingResponse
@@ -832,11 +832,11 @@ const Chat = () => {
             gap: 1.5
           }}>
             {/* Chatbotlogo above input */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+            {/* <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
               <a href="http://agenty.tech" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
                 <img src="/chatbot_logo.png" alt="Chatbot Logo" style={{ height: 18, width: 'auto', display: 'block' }} />
               </a>
-            </Box>
+            </Box> */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <TextField
                 inputRef={inputRef}
