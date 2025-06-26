@@ -824,7 +824,6 @@ const Chat = () => {
           <Box sx={{ 
             p: 2, 
             bgcolor: '#fff', 
-            borderTop: '1px solid #ececec',
             position: isMobile ? 'sticky' : 'relative',
             bottom: 0,
             display: 'flex',
