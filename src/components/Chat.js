@@ -58,30 +58,49 @@ const TypedMessage = ({ content, forceShow, onTypingComplete }) => {
   const [displayedContent, setDisplayedContent] = useState(forceShow ? content : '');
   const [isTyping, setIsTyping] = useState(!forceShow);
   const indexRef = useRef(0);
+  const timeoutRef = useRef(null);
+  const completedRef = useRef(false);
+  const onTypingCompleteRef = useRef(onTypingComplete);
   const [isPaused, setIsPaused] = useState(false);
+
+  // Keep the latest onTypingComplete callback in a ref so the typing effect
+  // does not restart every time the parent re-renders (which it does on every
+  // keystroke / socket event because the callback is an inline arrow function).
+  useEffect(() => {
+    onTypingCompleteRef.current = onTypingComplete;
+  }, [onTypingComplete]);
 
   useEffect(() => {
     // Reset index when content changes
     indexRef.current = 0;
+    completedRef.current = false;
     setDisplayedContent('');
-    
+
     if (forceShow) {
       setDisplayedContent(content);
       setIsTyping(false);
-      onTypingComplete?.();
+      if (!completedRef.current) {
+        completedRef.current = true;
+        onTypingCompleteRef.current?.();
+      }
       return;
     }
 
     const typeNextCharacter = () => {
       if (indexRef.current < content.length && !isPaused) {
-        setDisplayedContent(prev => content.substring(0, indexRef.current + 1));
         indexRef.current += 1;
-        
-        // Schedule next character
-        setTimeout(typeNextCharacter, 30);
-      } else if (indexRef.current >= content.length) {
-        setIsTyping(false);
-        onTypingComplete?.();
+        setDisplayedContent(content.substring(0, indexRef.current));
+
+        if (indexRef.current >= content.length) {
+          setIsTyping(false);
+          if (!completedRef.current) {
+            completedRef.current = true;
+            onTypingCompleteRef.current?.();
+          }
+          return;
+        }
+
+        timeoutRef.current = setTimeout(typeNextCharacter, 30);
       }
     };
 
@@ -89,9 +108,21 @@ const TypedMessage = ({ content, forceShow, onTypingComplete }) => {
     if (!isPaused) {
       typeNextCharacter();
     }
-    
-    return () => { /* cleanup if needed */ };
-  }, [content, forceShow, isPaused, onTypingComplete]);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      // Safety net: if the component is unmounted mid-typing, still notify
+      // the parent so it doesn't stay stuck in the "typing response" state
+      // (which would leave the send button disabled forever).
+      if (!completedRef.current) {
+        completedRef.current = true;
+        onTypingCompleteRef.current?.();
+      }
+    };
+  }, [content, forceShow, isPaused]);
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
