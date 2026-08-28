@@ -1,6 +1,6 @@
+// Websocket changes 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Box, TextField, Button, Paper, Typography, Container, Alert, Snackbar, IconButton, Fab, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import io from 'socket.io-client';
 import LoadingSpinner from './LoadingSpinner';
 import CloseIcon from '@mui/icons-material/Close';
 import RemoveIcon from '@mui/icons-material/Remove';
@@ -16,7 +16,8 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import AddIcon from '@mui/icons-material/Add';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
-
+// Backend WebSocket URL (ίδιο endpoint, ανεξάρτητα αν τρέχεις local ή live)
+const WS_URL = 'wss://gruppocb-f23c19cea41a.herokuapp.com/ws';
 const quickReplies = [
   'Θέλω να σχεδιάσω κουζίνα',
   'Θέλω να δω επιλογές κουζινών',
@@ -281,8 +282,11 @@ const Chat = () => {
 
   const deleteSession = async () => {
     if (socket) {
-      socket.emit('deleteSession', { sessionId: socket.id });
-      socket.close();
+      try {
+        socket.close();
+      } catch (e) {
+        console.warn('Error closing socket:', e);
+      }
       setSocket(null);
       setSessionEnded(true);
       if (window.parent !== window) {
@@ -308,7 +312,7 @@ const Chat = () => {
   const startNewSession = () => {
     const savedState = loadChatState();
     let restoring = false;
-    
+
     if (savedState && savedState.messages && savedState.messages.length > 1) {
       setMessages(savedState.messages);
       setShowQuickReplies(savedState.showQuickReplies);
@@ -338,50 +342,70 @@ const Chat = () => {
       setIsLoading(true);
     }
 
-    const newSocket = io('https://vangelis-be-72a501737d30.herokuapp.com', {
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
+    // --- Native WebSocket connection (αντί για socket.io) ---
+    // Το backend (index.js) χρησιμοποιεί το 'ws' package με path '/ws',
+    // όχι socket.io, οπότε χρησιμοποιούμε το native WebSocket API.
+    const newSocket = new WebSocket(WS_URL);
 
-    setSocket(newSocket);
-
-    newSocket.on('connect', () => { 
+    newSocket.onopen = () => {
       setIsLoading(false);
-      newSocket.emit('startChat');
-      console.log('Socket connected:', newSocket.id);
-    });
+      console.log('WebSocket connected:', WS_URL);
+    };
 
-    newSocket.on('connect_error', (error) => {
+    newSocket.onerror = (event) => {
       setError('Failed to connect to the server. Please try again later.');
       setIsLoading(false);
-      console.error('Socket connection error:', error);
-    });
+      console.error('WebSocket connection error:', event);
+    };
 
-    newSocket.on('response', (data) => {
-      console.log('Received assistant response:', data.message);
-      setIsTypingResponse(true);
-      setIsPaused(false);
-      setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
-    });
+    newSocket.onclose = (event) => {
+      console.log('WebSocket closed:', event.code, event.reason);
+    };
 
-    newSocket.on('typing', (data) => {
-      if (data.sessionId === 'assistant') {
-        setIsTyping(true);
+    newSocket.onmessage = (event) => {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (e) {
+        console.error('Failed to parse WebSocket message:', event.data);
+        return;
       }
-      console.log('Received typing event:', data);
-    });
 
-    newSocket.on('stopTyping', (data) => {
-      if (data.sessionId === 'assistant') {
-        setIsTyping(false);
+      switch (data.type) {
+        case 'ping':
+          // Keep-alive: απάντα με pong ώστε να μη κλείσει η σύνδεση
+          try {
+            newSocket.send(JSON.stringify({ type: 'pong' }));
+          } catch (e) {
+            console.warn('Failed to send pong:', e);
+          }
+          break;
+
+        case 'chunk':
+          // Streaming partial response - κρατάμε μόνο typing indicator ενεργό
+          setIsTyping(true);
+          break;
+
+        case 'complete':
+          console.log('Received assistant response:', data.content);
+          setIsTyping(false);
+          setIsTypingResponse(true);
+          setIsPaused(false);
+          setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
+          break;
+
+        case 'error':
+          setError(data.message || 'An error occurred');
+          setIsTyping(false);
+          console.error('WebSocket error message:', data);
+          break;
+
+        default:
+          console.log('Unhandled WebSocket message type:', data.type, data);
       }
-      console.log('Received stopTyping event:', data);
-    });
+    };
 
-    newSocket.on('error', (data) => {
-      setError(data.message || 'An error occurred');
-      console.error('Socket error event:', data);
-    });
+    setSocket(newSocket);
   };
 
   const handleMinimize = () => {
@@ -405,7 +429,7 @@ const Chat = () => {
 
   const handleMaximize = () => {
     startNewSession();
-    
+
     if (window.parent !== window) {
       window.parent.postMessage(JSON.stringify({
         type: 'CHAT_MINIMIZED',
@@ -432,9 +456,9 @@ const Chat = () => {
   }, [messages]);
 
   const handleSend = () => {
-    if (input.trim() && socket) {
+    if (input.trim() && socket && socket.readyState === WebSocket.OPEN) {
       console.log('Sending message to backend:', input);
-      socket.emit('message', { message: input });
+      socket.send(JSON.stringify({ content: input }));
       setMessages(prev => [...prev, { role: 'user', content: input }]);
       setInput('');
       setShowQuickReplies(false);
@@ -444,10 +468,10 @@ const Chat = () => {
   };
 
   const handleQuickReply = (reply) => {
-    console.log('Quick reply clicked:', reply, 'Socket:', !!socket);
-    if (socket) {
+    console.log('Quick reply clicked:', reply, 'Socket ready:', socket?.readyState === WebSocket.OPEN);
+    if (socket && socket.readyState === WebSocket.OPEN) {
       console.log('Sending quick reply to backend:', reply);
-      socket.emit('message', { message: reply });
+      socket.send(JSON.stringify({ content: reply }));
       setMessages(prev => [...prev, { role: 'user', content: reply }]);
       setShowQuickReplies(false);
       setIsTyping(true);
@@ -464,20 +488,8 @@ const Chat = () => {
 
   const handleInputChange = (e) => {
     setInput(e.target.value);
-    
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    if (socket) {
-      socket.emit('typing');
-    }
-
-    typingTimeoutRef.current = setTimeout(() => {
-      if (socket) {
-        socket.emit('stopTyping');
-      }
-    }, 1000);
+    // Σημείωση: το backend δεν υποστηρίζει events 'typing'/'stopTyping',
+    // οπότε αυτή η λειτουργία αφαιρέθηκε (δεν υπάρχει αντίστοιχος handler server-side).
   };
 
   const handleCloseError = () => {
@@ -576,37 +588,6 @@ const Chat = () => {
         borderTopRightRadius: isMobile ? 16 : 16,
       }}
     >
-      {/* Πλαίσιο 1: Avatar + Τίτλος
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
-          background: '#fff',
-          borderRadius: '12px',
-          px: 1.2,
-          py: 0.6,
-        }}
-      >
-        <img
-          src="/Gruppo_IQ.jpg"
-          alt="Assistant Icon"
-          style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }}
-        />
-        <Typography
-          variant="subtitle1"
-          sx={{
-            fontWeight: 600,
-            fontSize: '0.9rem',
-            color: '#a1a1',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Gruppo IQ
-        </Typography>
-      </Box> */}
-            {/* Τίτλος - χωρίς πλαίσιο */}
-      
       <img
           src="/Avatar.png"
           alt="Assistant Icon"
@@ -624,9 +605,8 @@ const Chat = () => {
       >
         Gruppo IQ
       </Typography>
-        
+
       <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
-        {/* Πλαίσιο 2: Minimize */}
         <IconButton
           size="small"
           onClick={handleMinimize}
@@ -646,7 +626,6 @@ const Chat = () => {
           <RemoveIcon fontSize="small" />
         </IconButton>
 
-        {/* Πλαίσιο 3: Delete */}
         <IconButton
           size="small"
           onClick={handleDeleteClick}
@@ -745,9 +724,9 @@ const Chat = () => {
       }}
     >
       <Container maxWidth="md" sx={{ p: 0, height: '100%', width: '100%' }}>
-        <Paper 
-          elevation={3} 
-          sx={{ 
+        <Paper
+          elevation={3}
+          sx={{
             width: '100%',
             height: '100%',
             display: 'flex',
@@ -757,14 +736,14 @@ const Chat = () => {
             fontSize: '0.95rem',
             position: 'relative',
             m: 0,
-            background: '#f7f6f4',            
+            background: '#f7f6f4',
           }}
         >
           {HeaderBar}
-          <Box sx={{ 
-            flex: 1, 
+          <Box sx={{
+            flex: 1,
             minHeight: 0,
-            overflowY: 'auto', 
+            overflowY: 'auto',
             p: 2,
             display: 'flex',
             flexDirection: 'column',
@@ -802,9 +781,9 @@ const Chat = () => {
                     >
                       {message.role === 'assistant'
                         ? (isLastAssistantMessage && isTypingResponse
-                            ? <TypedMessage 
-                                content={message.content} 
-                                forceShow={false} 
+                            ? <TypedMessage
+                                content={message.content}
+                                forceShow={false}
                                 onTypingComplete={() => {
                                   setIsTypingResponse(false);
                                   setIsTyping(false);
@@ -831,7 +810,7 @@ const Chat = () => {
                             variant="outlined"
                             fullWidth
                             onClick={() => handleQuickReply(reply)}
-                            disabled={!socket}
+                            disabled={!socket || socket.readyState !== WebSocket.OPEN}
 
                             startIcon={
                               <Box
@@ -930,8 +909,8 @@ const Chat = () => {
             <div ref={messagesEndRef} />
           </Box>
           {/* Input area */}
-          <Box sx={{ 
-            p: 2, 
+          <Box sx={{
+            p: 2,
             background: '#f7f6f4',
             position: isMobile ? 'sticky' : 'relative',
             bottom: 0,
@@ -1011,16 +990,16 @@ const Chat = () => {
               </Button>
             </Box>
 
-            <Box sx={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
               gap: 0.1
             }}>
             </Box>
           </Box>
         </Paper>
-        
+
         <Dialog
           open={deleteDialogOpen}
           onClose={handleDeleteCancel}
