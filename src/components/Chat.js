@@ -13,6 +13,10 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
+import AddIcon from '@mui/icons-material/Add';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+
+
 const quickReplies = [
   'Θέλω να σχεδιάσω κουζίνα',
   'Θέλω να δω επιλογές κουζινών',
@@ -26,29 +30,40 @@ const initialBotMessage = {
 
 // Add TypingIndicator component
 const TypingIndicator = () => {
-  const [dots, setDots] = useState('');
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDots(prev => {
-        if (prev.length >= 3) return '';
-        return prev + '.';
-      });
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <Box
       sx={{
         display: 'flex',
         alignItems: 'center',
-        gap: 0.5,
+        gap: '4px',
+        px: 0.5,
+        py: 0.5,
       }}
     >
-      <Typography sx={{ fontSize: '0.75rem', fontWeight: 400 }}>typing</Typography>
-      <Typography sx={{ minWidth: '24px' }}>{dots}</Typography>
+      {[0, 1, 2].map((i) => (
+        <Box
+          key={i}
+          sx={{
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: '#1a1a1a',
+            opacity: 0.6,
+            animation: 'typingBounce 1.2s infinite ease-in-out',
+            animationDelay: `${i * 0.15}s`,
+            '@keyframes typingBounce': {
+              '0%, 60%, 100%': {
+                transform: 'translateY(0)',
+                opacity: 0.4,
+              },
+              '30%': {
+                transform: 'translateY(-5px)',
+                opacity: 1,
+              },
+            },
+          }}
+        />
+      ))}
     </Box>
   );
 };
@@ -63,15 +78,11 @@ const TypedMessage = ({ content, forceShow, onTypingComplete }) => {
   const onTypingCompleteRef = useRef(onTypingComplete);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Keep the latest onTypingComplete callback in a ref so the typing effect
-  // does not restart every time the parent re-renders (which it does on every
-  // keystroke / socket event because the callback is an inline arrow function).
   useEffect(() => {
     onTypingCompleteRef.current = onTypingComplete;
   }, [onTypingComplete]);
 
   useEffect(() => {
-    // Reset index when content changes
     indexRef.current = 0;
     completedRef.current = false;
     setDisplayedContent('');
@@ -104,7 +115,6 @@ const TypedMessage = ({ content, forceShow, onTypingComplete }) => {
       }
     };
 
-    // Start typing animation
     if (!isPaused) {
       typeNextCharacter();
     }
@@ -114,9 +124,6 @@ const TypedMessage = ({ content, forceShow, onTypingComplete }) => {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
-      // Safety net: if the component is unmounted mid-typing, still notify
-      // the parent so it doesn't stay stuck in the "typing response" state
-      // (which would leave the send button disabled forever).
       if (!completedRef.current) {
         completedRef.current = true;
         onTypingCompleteRef.current?.();
@@ -129,18 +136,6 @@ const TypedMessage = ({ content, forceShow, onTypingComplete }) => {
       <Typography sx={{ fontSize: '0.75rem', fontWeight: 400 }}>
         {displayedContent}
       </Typography>
-      {/* {!forceShow && (
-        <IconButton 
-          size="small" 
-          onClick={() => setIsPaused(!isPaused)}
-          sx={{ 
-            color: isPaused ? '#8B5CF6' : '#888',
-            '&:hover': { color: '#7C3AED' }
-          }}
-        >
-          {isPaused ? <PlayArrowIcon /> : <PauseIcon />}
-        </IconButton>
-      )} */}
     </Box>
   );
 };
@@ -151,30 +146,25 @@ const useHostViewport = () => {
   const [isHostMobile, setIsHostMobile] = useState(null);
 
   useEffect(() => {
-    // Listen for messages from host app
     const handleMessage = (event) => {
-      // Only process messages from the expected origin
       if (event.origin !== window.location.origin) return;
 
       try {
         let data = event.data;
         if (typeof data === 'string') {
-          // Only try to parse if it looks like JSON
           if (data.startsWith('{') || data.startsWith('[')) {
             data = JSON.parse(data);
           } else {
-            return; // Ignore non-JSON strings
+            return;
           }
         }
         if (data.type === 'VIEWPORT_INFO') {
           setIsHostMobile(data.isMobile);
         }
       } catch (error) {
-        // Optionally: console.warn('Ignored non-JSON message', event.data);
       }
     };
 
-    // Request viewport info from host app
     const requestViewportInfo = () => {
       if (window.parent !== window) {
         window.parent.postMessage(JSON.stringify({
@@ -186,7 +176,6 @@ const useHostViewport = () => {
     window.addEventListener('message', handleMessage);
     requestViewportInfo();
 
-    // Fallback to window resize if no host info is received
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 600);
     };
@@ -199,12 +188,10 @@ const useHostViewport = () => {
     };
   }, []);
 
-  // Use host's mobile info if available, otherwise fallback to window width
   return isHostMobile !== null ? isHostMobile : isMobile;
 };
 
 const Chat = () => {
-  // Helper functions for session storage
   const saveChatState = (state) => {
     try {
       sessionStorage.setItem('chatState', JSON.stringify(state));
@@ -231,7 +218,6 @@ const Chat = () => {
     }
   };
 
-  // Load initial state from session storage
   const savedState = loadChatState();
   const [messages, setMessages] = useState(savedState?.messages || [initialBotMessage]);
   const [input, setInput] = useState(savedState?.input || '');
@@ -243,7 +229,7 @@ const Chat = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const typingTimeoutRef = useRef(null);
   const messagesEndRef = useRef(null);
-  const [isMinimized, setIsMinimized] = useState(true); // Always start minimized on page reload
+  const [isMinimized, setIsMinimized] = useState(true);
   const [isVisible, setIsVisible] = useState(true);
   const [sessionEnded, setSessionEnded] = useState(savedState?.sessionEnded ?? false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -255,22 +241,18 @@ const Chat = () => {
   const [savedSession, setSavedSession] = useState(null);
   const [isManualDelete, setIsManualDelete] = useState(false);
 
-  // Save state to session storage whenever relevant state changes
   useEffect(() => {
     const stateToSave = {
       messages,
       input,
       showQuickReplies,
       sessionEnded
-      // Note: isMinimized is not saved since we always want to start minimized on reload
     };
     saveChatState(stateToSave);
   }, [messages, input, showQuickReplies, sessionEnded]);
 
-  // Add effect to notify parent window of initial minimized state
   useEffect(() => {
     if (window.parent !== window) {
-      // Add a small delay to ensure the iframe is loaded
       const timer = setTimeout(() => {
         window.parent.postMessage(JSON.stringify({
           type: 'CHAT_MINIMIZED',
@@ -282,10 +264,8 @@ const Chat = () => {
     }
   }, [isMinimized]);
 
-  // Add effect to handle initial load
   useEffect(() => {
     if (window.parent !== window) {
-      // Send initial state again after a longer delay to ensure it's received
       const timer = setTimeout(() => {
         window.parent.postMessage(JSON.stringify({
           type: 'CHAT_MINIMIZED',
@@ -297,7 +277,6 @@ const Chat = () => {
     }
   }, [isMinimized]);
 
-  // Use the custom hook instead of local state
   const isMobile = useHostViewport();
 
   const deleteSession = async () => {
@@ -306,22 +285,18 @@ const Chat = () => {
       socket.close();
       setSocket(null);
       setSessionEnded(true);
-      // First send minimize message to parent to show white overlay
       if (window.parent !== window) {
         window.parent.postMessage(JSON.stringify({
           type: 'CHAT_MINIMIZED',
           isMinimized: true
         }), '*');
       }
-      // Then update local state after a delay to allow white overlay to appear
       setTimeout(() => {
         setIsMinimized(true);
         setSavedSession(null);
-        // Reset messages to initial state
         setMessages([initialBotMessage]);
         setShowQuickReplies(true);
         setInput('');
-        // Only clear session storage if it's a manual delete
         if (isManualDelete) {
           clearChatState();
           setIsManualDelete(false);
@@ -331,12 +306,10 @@ const Chat = () => {
   };
 
   const startNewSession = () => {
-    // Check if there's saved state to restore
     const savedState = loadChatState();
     let restoring = false;
     
     if (savedState && savedState.messages && savedState.messages.length > 1) {
-      // Restore saved state instead of starting fresh
       setMessages(savedState.messages);
       setShowQuickReplies(savedState.showQuickReplies);
       setInput(savedState.input || '');
@@ -349,9 +322,8 @@ const Chat = () => {
       setIsPaused(false);
       setError(null);
       restoring = true;
-      setIsLoading(false); // Do not show spinner when restoring
+      setIsLoading(false);
     } else {
-      // Reset all state for truly new session
       setMessages([initialBotMessage]);
       setShowQuickReplies(true);
       setSessionEnded(false);
@@ -363,10 +335,9 @@ const Chat = () => {
       setLastAnimatedBotMsgIndex(null);
       setIsPaused(false);
       setError(null);
-      setIsLoading(true); // Show spinner only for new session
+      setIsLoading(true);
     }
 
-    // Create new socket connection
     const newSocket = io('https://vangelis-be-72a501737d30.herokuapp.com', {
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
@@ -421,31 +392,26 @@ const Chat = () => {
         socket
       });
     }
-    // First send minimize message to parent to show white overlay
     if (window.parent !== window) {
       window.parent.postMessage(JSON.stringify({
         type: 'CHAT_MINIMIZED',
         isMinimized: true
       }), '*');
     }
-    // Then update local state after a delay to allow white overlay to appear
     setTimeout(() => {
       setIsMinimized(true);
     }, 50);
   };
 
   const handleMaximize = () => {
-    // Always start a new session when maximizing (this will restore saved state if available)
     startNewSession();
     
-    // First send maximize message to parent to show white overlay
     if (window.parent !== window) {
       window.parent.postMessage(JSON.stringify({
         type: 'CHAT_MINIMIZED',
         isMinimized: false
       }), '*');
     }
-    // Then update local state after a delay to allow white overlay to appear
     setTimeout(() => {
       setIsMinimized(false);
     }, 50);
@@ -460,7 +426,6 @@ const Chat = () => {
   }, [messages, isTyping]);
 
   useEffect(() => {
-    // Set the last bot message index to animate when a new assistant message arrives
     if (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
       setLastAnimatedBotMsgIndex(messages.length - 1);
     }
@@ -474,7 +439,7 @@ const Chat = () => {
       setInput('');
       setShowQuickReplies(false);
       setIsTyping(true);
-      setLastAnimatedBotMsgIndex(null); // Stop animation for all bot messages
+      setLastAnimatedBotMsgIndex(null);
     }
   };
 
@@ -486,7 +451,7 @@ const Chat = () => {
       setMessages(prev => [...prev, { role: 'user', content: reply }]);
       setShowQuickReplies(false);
       setIsTyping(true);
-      setLastAnimatedBotMsgIndex(null); // Stop animation for all bot messages
+      setLastAnimatedBotMsgIndex(null);
     }
   };
 
@@ -500,17 +465,14 @@ const Chat = () => {
   const handleInputChange = (e) => {
     setInput(e.target.value);
     
-    // Clear existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    // Emit typing event
     if (socket) {
       socket.emit('typing');
     }
 
-    // Set timeout to stop typing
     typingTimeoutRef.current = setTimeout(() => {
       if (socket) {
         socket.emit('stopTyping');
@@ -525,7 +487,6 @@ const Chat = () => {
   useEffect(() => {
     const handleResize = () => {
       const newHeight = window.innerHeight;
-      // If height decreased significantly from initial, keyboard is likely visible
       if (isMobile && initialWindowHeight - newHeight > 100) {
         setKeyboardVisible(true);
       } else {
@@ -542,7 +503,7 @@ const Chat = () => {
   };
 
   const handleDeleteConfirm = () => {
-    setIsManualDelete(true); // Mark this as a manual delete
+    setIsManualDelete(true);
     deleteSession();
     setDeleteDialogOpen(false);
   };
@@ -552,7 +513,6 @@ const Chat = () => {
   };
 
   useEffect(() => {
-    // Listen for messages from parent window
     const handleMessage = (event) => {
       try {
         const data = JSON.parse(event.data);
@@ -562,7 +522,6 @@ const Chat = () => {
             startNewSession();
           }
           setIsMinimized(false);
-          // Send message to parent window
           if (window.parent !== window) {
             window.parent.postMessage(JSON.stringify({
               type: 'CHAT_MINIMIZED',
@@ -571,20 +530,16 @@ const Chat = () => {
           }
         }
       } catch (error) {
-        // Ignore non-JSON messages
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [sessionEnded, socket]); // Add socket as dependency
+  }, [sessionEnded, socket]);
 
-  // Add beforeunload event listener
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (socket) {
-        // Don't call deleteSession here as it would clear session storage
-        // Just close the socket to clean up the connection
         socket.close();
       }
     };
@@ -600,7 +555,7 @@ const Chat = () => {
         clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [socket]); // Add socket as dependency
+  }, [socket]);
 
   if (!isVisible) return null;
 
@@ -609,29 +564,105 @@ const Chat = () => {
     <Box
       sx={{
         width: '100%',
-        height: 48,
-        bgcolor: 'white',
-        borderBottom: '1px solid #ececec',
+        height: 56,
+        background: '#f7f6f4',
+        borderBottom: '1px solid #e0e0e0',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        px: 2,
+        px: 1.5,
+        gap: 1,
         borderTopLeftRadius: isMobile ? 16 : 16,
         borderTopRightRadius: isMobile ? 16 : 16,
-        fontSize: '1.1rem',
-        fontWeight: 700,
       }}
     >
-      <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '1.1rem', color: '#222' }}>
-      Gruppo IQ
+      {/* Πλαίσιο 1: Avatar + Τίτλος
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          background: '#fff',
+          borderRadius: '12px',
+          px: 1.2,
+          py: 0.6,
+        }}
+      >
+        <img
+          src="/Gruppo_IQ.jpg"
+          alt="Assistant Icon"
+          style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }}
+        />
+        <Typography
+          variant="subtitle1"
+          sx={{
+            fontWeight: 600,
+            fontSize: '0.9rem',
+            color: '#a1a1',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Gruppo IQ
+        </Typography>
+      </Box> */}
+            {/* Τίτλος - χωρίς πλαίσιο */}
+      
+      <img
+          src="/Avatar.png"
+          alt="Assistant Icon"
+          style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }}
+        />
+      <Typography
+        variant="subtitle1"
+        sx={{
+          fontWeight: 600,
+          fontSize: '0.95rem',
+          color: '#1a1a1a',
+          fontStyle: 'italic',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        Gruppo IQ
       </Typography>
-      <Box sx={{ display: 'flex', gap: 1.2, ml: 'auto' }}>
-        {/* Minimize control */}
-        <IconButton size="small" onClick={handleMinimize} sx={{ color: '#888' }}>
+        
+      <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
+        {/* Πλαίσιο 2: Minimize */}
+        <IconButton
+          size="small"
+          onClick={handleMinimize}
+          sx={{
+            background: '#1a1a1a',
+            border: '1px solid #000',
+            borderRadius: '12px',
+            color: 'rgba(255,255,255,0.85)',
+            width: 36,
+            height: 36,
+            '&:hover': {
+              background: '#000',
+              color: '#fff',
+            },
+          }}
+        >
           <RemoveIcon fontSize="small" />
         </IconButton>
-        {/* Delete session and minimize */}
-        <IconButton size="small" onClick={handleDeleteClick} sx={{ color: '#888' }}>
+
+        {/* Πλαίσιο 3: Delete */}
+        <IconButton
+          size="small"
+          onClick={handleDeleteClick}
+          sx={{
+            background: '#1a1a1a',
+            border: '1px solid #000',
+            borderRadius: '12px',
+            color: 'rgba(255,255,255,0.85)',
+            width: 36,
+            height: 36,
+            '&:hover': {
+              background: '#000',
+              color: '#fff',
+            },
+          }}
+        >
           <DeleteIcon fontSize="small" />
         </IconButton>
       </Box>
@@ -659,9 +690,9 @@ const Chat = () => {
         <Fab
           color="primary"
           sx={{
-            bgcolor: '#8B5CF6',
+            bgcolor: '#fff',
             '&:hover': {
-              bgcolor: '#7C3AED',
+              bgcolor: '#fff',
             },
             width: '100%',
             height: '100%',
@@ -676,22 +707,21 @@ const Chat = () => {
             borderRadius: '50%',
           }}
         >
-          <img
-            src="/agent_bot.png"
-            alt="Agent Bot"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              borderRadius: '50%'
-            }}
-          />
+        <img
+          src="/Avatar.png"
+          alt="Agent Bot"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            borderRadius: '50%'
+          }}
+        />
         </Fab>
       </Box>
     );
   }
 
-  // Only show plain white screen if loading and there is no previous chat history
   if (isLoading && (!messages || messages.length <= 1)) {
     return <div style={{ width: '100vw', height: '100vh', background: '#fff' }} />;
   }
@@ -727,7 +757,7 @@ const Chat = () => {
             fontSize: '0.95rem',
             position: 'relative',
             m: 0,
-            bgcolor: '#fff',
+            background: '#f7f6f4',            
           }}
         >
           {HeaderBar}
@@ -739,14 +769,14 @@ const Chat = () => {
             display: 'flex',
             flexDirection: 'column',
             gap: 2,
-            bgcolor: '#fff',
+            background: 'transparent',
           }}>
-            {/* Initial assistant message with icon and style */}
             {messages.filter(m => m && m.content).map((message, index) => {
               const isInitialBotMessage = index === 0 && message.role === 'assistant';
               const isLastAssistantMessage = message.role === 'assistant' && index === messages.length - 1;
               return (
                 <React.Fragment key={index}>
+
                   <Box
                     sx={{
                       display: 'flex',
@@ -759,19 +789,17 @@ const Chat = () => {
                       sx={{
                         p: isInitialBotMessage ? 2 : 1.5,
                         maxWidth: '90%',
-                        backgroundColor: isInitialBotMessage ? '#f5f5f7' : (message.role === 'user' ? '#e3f2fd' : '#f5f5f5'),
-                        borderRadius: 3,
+                        backgroundColor: message.role === 'user' ? '#1a1a1a' : '#ffffff',
+                        color: message.role === 'user' ? '#ffffff' : '#1e293b',
+                        borderRadius: message.role === 'user' ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
                         display: 'flex',
                         alignItems: 'flex-start',
                         gap: isInitialBotMessage ? 1.5 : 1,
-                        boxShadow: isInitialBotMessage ? 1 : 0,
-                        fontSize: '0.75rem',
+                        boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+                        fontSize: '0.85rem',
                         fontWeight: isInitialBotMessage ? 500 : 400,
                       }}
                     >
-                      {isInitialBotMessage && (
-                        <img src="/Gruppo_IQ.jpg" alt="Assistant Icon" style={{ width: 48, height: 48, marginTop: 2, borderRadius: '6px' }} />
-                      )}
                       {message.role === 'assistant'
                         ? (isLastAssistantMessage && isTypingResponse
                             ? <TypedMessage 
@@ -782,15 +810,15 @@ const Chat = () => {
                                   setIsTyping(false);
                                 }}
                               />
-                            : <Typography sx={{ fontSize: '0.75rem', fontWeight: isInitialBotMessage ? 500 : 400 }}>
+                            : <Typography sx={{ fontSize: '0.85rem', fontWeight: isInitialBotMessage ? 500 : 400, color: '#1e293b' }}>
                                 {message.content}
                               </Typography>
                           )
-                        : <Typography sx={{ fontSize: '0.75rem' }}>{message.content}</Typography>
+                        : <Typography sx={{ fontSize: '0.85rem', color: '#ffffff' }}>{message.content}</Typography>
                       }
                     </Paper>
                   </Box>
-                  {/* Quick replies below initial message, above input */}
+
                   {isInitialBotMessage && showQuickReplies && (
                     <Box sx={{ mb: 2 }}>
                       <Typography sx={{ mb: 0.5, fontSize: '0.9rem', color: '#888', fontWeight: 500 }}>
@@ -804,26 +832,76 @@ const Chat = () => {
                             fullWidth
                             onClick={() => handleQuickReply(reply)}
                             disabled={!socket}
+
+                            startIcon={
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: 12,
+                                  height: 12,
+                                  borderRadius: '50%',
+                                  background: '#1a1a1a',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <AddIcon sx={{ fontSize: '18px', color: '#fff' }} />
+                              </Box>
+                            }
+
+                            endIcon={
+                              <PlayArrowIcon
+                                sx={{
+                                  fontSize: '15px',
+                                  color: '#9a9a9a',
+                                  transition: 'color 0.2s ease',
+                                }}
+                              />
+                            }
+
                             sx={{
-                              borderRadius: 999,
+                              width: '100%',
+                              boxSizing: 'border-box',
+                              px: '14px',
+                              py: '7px',
+                              minHeight: '34px',
+                              borderRadius: '12px',
+                              border: '1px solid #ececec',
+                              background: '#ffffff',
+                              color: '#1a1a1a',
+                              fontFamily: "'Outfit', sans-serif",
+                              fontSize: '0.82rem',
+                              fontWeight: 500,
+                              lineHeight: 1.3,
                               textTransform: 'none',
-                              fontWeight: 400,
-                              fontSize: '0.75rem',
+                              textAlign: 'left',
                               justifyContent: 'flex-start',
-                              bgcolor: 'white',
-                              border: '1.5px solid',
-                              borderColor: '#e0e0e0',
-                              color: '#222',
-                              boxShadow: 'none',
-                              px: 2.5,
-                              py: 1.2,
-                              minHeight: '38px',
-                              transition: 'border-color 0.2s, color 0.2s, box-shadow 0.2s',
-                              '&:hover, &:focus': {
-                                borderColor: '#8B5CF6',
-                                color: '#8B5CF6',
-                                boxShadow: '0 0 0 2px #ede9fe',
-                                background: '#faf8ff',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 0 0 1px rgba(255,255,255,0.8) inset',
+                              transition:
+                                'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease',
+                              '& .MuiButton-startIcon': {
+                                marginLeft: 0,
+                                marginRight: '10px',
+                                flexShrink: 0,
+                              },
+                              '& .MuiButton-startIcon svg': {
+                                fontSize: '15px',
+                                width: '12px',
+                                height: '12px',
+                              },
+                              '& .MuiButton-endIcon': {
+                                marginLeft: 'auto',
+                                marginRight: 0,
+                                flexShrink: 0,
+                              },
+                              '&:hover': {
+                                borderColor: '#d0d0d0',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
+                                '& .MuiButton-endIcon svg': {
+                                  color: '#1a1a1a',
+                                },
                               },
                             }}
                           >
@@ -854,19 +932,13 @@ const Chat = () => {
           {/* Input area */}
           <Box sx={{ 
             p: 2, 
-            bgcolor: '#fff', 
+            background: '#f7f6f4',
             position: isMobile ? 'sticky' : 'relative',
             bottom: 0,
             display: 'flex',
             flexDirection: 'column',
             gap: 1.5
           }}>
-            {/* Chatbotlogo above input */}
-            {/* <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
-              <a href="http://agenty.tech" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
-                <img src="/chatbot_logo.png" alt="Chatbot Logo" style={{ height: 18, width: 'auto', display: 'block' }} />
-              </a>
-            </Box> */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <TextField
                 inputRef={inputRef}
@@ -874,29 +946,38 @@ const Chat = () => {
                 value={input}
                 onChange={handleInputChange}
                 onKeyPress={handleKeyPress}
-                placeholder="Type your message..."
+                placeholder="Πληκτρολογήστε το μήνυμά σας..."
                 variant="outlined"
                 size="small"
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    borderRadius: '8px',
+                    borderRadius: '24px',
                     background: '#fff',
-                    border: '1px solid #e0e0e0',
+                    border: '1px solid #ddd',
                     fontSize: '1rem',
                     paddingRight: 0,
-                    height: 40,
+                    height: 44,
+                    transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
+                    '&:hover': {
+                      borderColor: '#bbb',
+                    },
+                    '&.Mui-focused': {
+                      background: '#fff',
+                      borderColor: '#1a1a1a',
+                      boxShadow: '0 0 0 2px rgba(0,0,0,0.12)',
+                    },
                   },
                   '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: '#e0e0e0',
+                    border: 'none',
                   },
                   '& input': {
-                    padding: '10px 14px',
+                    padding: '12px 18px',
                   },
                   minWidth: 0,
                   flex: 1,
                 }}
                 InputProps={{
-                  style: { height: 40 }
+                  style: { height: 44 }
                 }}
               />
               <Button
@@ -904,43 +985,38 @@ const Chat = () => {
                 onClick={handleSend}
                 disabled={!input.trim() || isTypingResponse}
                 sx={{
-                  minWidth: 64,
-                  height: 40,
-                  borderRadius: '8px',
-                  background: '#b5cdfa',
+                  minWidth: 44,
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  padding: 0,
+                  background: '#1a1a1a',
                   color: '#fff',
-                  boxShadow: 'none',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
                   textTransform: 'none',
                   fontWeight: 500,
                   fontSize: '1rem',
                   '&:hover': {
-                    background: '#a4c3f7',
-                    boxShadow: 'none',
+                    background: '#000',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.45)',
                   },
                   '&.Mui-disabled': {
-                    background: '#e3eefd',
+                    background: '#d0d0d0',
                     color: '#fff',
+                    boxShadow: 'none',
                   }
                 }}
               >
-                Send
+                <SendIcon sx={{ fontSize: 20 }} />
               </Button>
             </Box>
-            {/* Footer disclaimer */}
+
             <Box sx={{ 
               display: 'flex', 
               flexDirection: 'column', 
               alignItems: 'center', 
               gap: 0.1
             }}>
-              {/* <Typography sx={{ fontSize: '0.8rem', color: '#aaa', textAlign: 'center' }}>
-                AI may generate inaccurate information
-              </Typography>
-              <Typography sx={{ fontSize: '0.8rem', color: '#8B5CF6', textAlign: 'center' }}>
-                <a href="https://agenty.com" target="_blank" rel="noopener noreferrer" style={{ color: '#8B5CF6', textDecoration: 'none' }}>
-                  Powered by Agenty
-                </a>
-              </Typography> */}
             </Box>
           </Box>
         </Paper>
@@ -948,21 +1024,78 @@ const Chat = () => {
         <Dialog
           open={deleteDialogOpen}
           onClose={handleDeleteCancel}
-          aria-labelledby="delete-dialog-title"
-          aria-describedby="delete-dialog-description"
+          PaperProps={{
+            sx: {
+              borderRadius: '18px',
+              width: 'calc(100% - 32px)',
+              maxWidth: '380px',
+              p: 1,
+              boxShadow: '0 18px 50px rgba(0,0,0,0.18)',
+            }
+          }}
         >
-          <DialogTitle id="delete-dialog-title">
-            Clear Chat History
+          <DialogTitle
+            sx={{
+              fontSize: '1.05rem',
+              fontWeight: 700,
+              color: '#0d3b52',
+              pb: 1,
+            }}
+          >
+            Κλείσιμο συνομιλίας;
           </DialogTitle>
-          <DialogContent id="delete-dialog-description">
-            <Typography>
-              After clearing history you won't be able to access previous chats.
+
+          <DialogContent>
+            <Typography
+              sx={{
+                fontSize: '0.9rem',
+                color: '#5f6b73',
+                lineHeight: 1.55,
+              }}
+            >
+              Θέλεις σίγουρα να κλείσεις τη συνομιλία;
+              Το ιστορικό της συνομιλίας θα διαγραφεί.
             </Typography>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={handleDeleteCancel} variant="outlined">Cancel</Button>
-            <Button onClick={handleDeleteConfirm} variant="contained" color="error">
-              Clear Chat
+
+          <DialogActions
+            sx={{
+              px: 3,
+              pb: 2,
+              gap: 1,
+            }}
+          >
+            <Button
+              onClick={handleDeleteCancel}
+              sx={{
+                borderRadius: '999px',
+                textTransform: 'none',
+                color: '#52616b',
+                px: 2.5,
+                fontWeight: 600,
+              }}
+            >
+              Ακύρωση
+            </Button>
+
+            <Button
+              onClick={handleDeleteConfirm}
+              variant="contained"
+              sx={{
+                borderRadius: '999px',
+                textTransform: 'none',
+                px: 2.5,
+                fontWeight: 600,
+                bgcolor: '#0d3b52',
+                boxShadow: 'none',
+
+                '&:hover': {
+                  bgcolor: '#092c3d',
+                  boxShadow: 'none',
+                },
+              }}
+            >
+              Κλείσιμο
             </Button>
           </DialogActions>
         </Dialog>
@@ -971,4 +1104,4 @@ const Chat = () => {
   );
 };
 
-export default Chat; 
+export default Chat;
